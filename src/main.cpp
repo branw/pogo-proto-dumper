@@ -38,7 +38,7 @@ enum Il2CppRGCTXDataType
 	IL2CPP_RGCTX_DATA_METHOD
 };
 
-const int kPublicKeyByteLength = 8;
+const int kPublickeyByteLength = 8;
 
 #pragma pack(4)
 struct global_metadata_header {
@@ -104,6 +104,10 @@ struct global_metadata_header {
 	int32_t attributeTypesCount;
 } header;
 
+char *stringLiteral;
+
+char *stringLiteralData;
+
 char *string;
 
 struct Il2CppEventDefinition
@@ -136,7 +140,7 @@ struct method_definition
 	CustomAttributeIndex customAttributeIndex;
 	GenericContainerIndex genericContainerIndex;
 	MethodIndex methodIndex;
-	MethodIndex invokerIndex;
+	MethodIndex invojerIndex;
 	MethodIndex delegateWrapperIndex;
 	RGCTXIndex rgctxStartIndex;
 	int32_t rgctxCount;
@@ -260,7 +264,15 @@ struct Il2CppTypeDefinition
 	uint16_t interfaces_count;
 	uint16_t interface_offsets_count;
 
-	uint32_t bitfield;
+	//uint32_t bitfield;
+	uint32_t value_type_flag : 1;
+	uint32_t enum_type_flag : 1;
+	uint32_t has_finalize_flag : 1;
+	uint32_t has_cctor_flag : 1;
+	uint32_t is_blittable_flag : 1;
+	uint32_t is_import_flag : 1;
+	uint32_t packing_size : 4;
+	uint32_t _reserved : 22;
 	uint32_t token;
 } *typeDefinitions;
 
@@ -286,15 +298,15 @@ struct Il2CppAssemblyName
 	StringIndex nameIndex;
 	StringIndex cultureIndex;
 	StringIndex hashValueIndex;
-	StringIndex publicKeyIndex;
+	StringIndex publickeyIndex;
 	uint32_t hash_alg;
 	int32_t hash_len;
 	uint32_t flags;
-	int32_t major;
+	int32_t maior;
 	int32_t minor;
 	int32_t build;
 	int32_t revision;
-	uint8_t publicKeyToken[kPublicKeyByteLength];
+	uint8_t publickeytoken[kPublickeyByteLength];
 };
 
 struct Il2CppAssemblyDefinition
@@ -340,11 +352,22 @@ TypeIndex *attributeTypes;
 // Return the string at a given StringIndex, or the index if it is invalid
 #define STRING(index) (index >= 0 && index < header.stringCount ? string + index : std::to_string(index))
 
+#define STRINGLIT(index) (index >= 0 && index < header.stringLiteralCount ? stringLiteral + index : std::to_string(index))
+
 bool isLittleEndian()
 {
 	auto number = 0x1;
 	auto ptr = reinterpret_cast<char *>(&number);
 	return ptr[0] == 1;
+}
+
+bool hasEnding(std::string const &fullString, std::string const &ending) {
+	if (fullString.length() >= ending.length()) {
+		return (0 == fullString.compare(fullString.length() - ending.length(), ending.length(), ending));
+	}
+	else {
+		return false;
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -367,7 +390,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (header.version != 21) {
-		std::cerr << "Metadata is described by unknown version" << std::endl;
+		std::cerr << "Metadata is described by unjnown version" << std::endl;
 		return 1;
 	}
 
@@ -379,6 +402,8 @@ int main(int argc, char *argv[]) {
         f.read(reinterpret_cast<char *>(container_name), header.container_name##Count); \
 	} while (0)
 
+	LOAD_DATA(char, stringLiteral);
+	LOAD_DATA(char, stringLiteralData);
 	LOAD_DATA(char, string);
 	LOAD_DATA(Il2CppEventDefinition, events);
 	LOAD_DATA(Il2CppPropertyDefinition, properties);
@@ -409,35 +434,62 @@ int main(int argc, char *argv[]) {
 
 #undef LOAD_DATA
 
-	// Enumerate all assemblies
-	std::cout << COUNT(assemblies) << " assemblies found for " << COUNT(images) << " images:" << std::endl;
-	for (auto i = 0; i < COUNT(assemblies); i++) {
-		auto assembly = assemblies[i];
-		auto image = images[assembly.imageIndex];
-		std::cout << i << ") " << STRING(assembly.aname.nameIndex) << " " << assembly.aname.major << "." << assembly.aname.minor << "." <<
-			assembly.aname.build << "." << assembly.aname.revision << " (" << STRING(image.nameIndex) << ")" << std::endl;
+	auto image = images[17];
 
-		// List all referenced assemblies
-		if (assembly.referencedAssemblyCount > 0) {
-			std::cout << "\tReferences " << assembly.referencedAssemblyCount << " assemblies: ";
-			for (auto j = assembly.referencedAssemblyStart; j < assembly.referencedAssemblyStart + assembly.referencedAssemblyCount; j++) {
-				auto assemblyIndex = referencedAssemblies[j];
-				std::cout << assemblyIndex << ") " << STRING(assemblies[assemblyIndex].aname.nameIndex) << ", ";
+	for (auto i = image.typeStart; i < image.typeStart + image.typeCount; i++) {
+		auto type = typeDefinitions[i];
+
+		if (STRING(type.namespaceIndex) != "Holoholo.Rpc") continue;
+
+		// Dump all enumerations
+		if (type.enum_type_flag)
+		{
+			std::cout << "enum " << STRING(type.nameIndex) << " {" << std::endl;
+			// Skip the first field which will always be "__value"
+			for (auto j = type.fieldStart + 1; j < type.fieldStart + type.field_count; j++)
+			{
+				auto field = fields[j];
+				auto fieldName = STRING(field.nameIndex);
+				//TODO get actual default value of field
+				auto fieldDefaultValue = j - type.fieldStart - 1;
+
+				std::cout << "\t" << fieldName << " = " << fieldDefaultValue << ";" << std::endl;
 			}
-			std::cout << std::endl;
+			std::cout << "}" << std::endl << std::endl;
+			continue;
 		}
 
-		// List all types
-		std::cout << "\tContains " << image.typeCount << " types:" << std::endl;
-		for (auto j = image.typeStart; j < image.typeStart + image.typeCount; j++) {
-			auto type = typeDefinitions[j];
-			auto ns = STRING(type.namespaceIndex);
-			std::cout << "\t\t" << ns << (ns == "" ? "" : ".") << STRING(type.nameIndex) << std::endl;
+		// Dump all messages
+		if (hasEnding(STRING(type.nameIndex), "Proto")) {
+			std::cout << "message " << STRING(type.nameIndex) << " { " << std::endl;
+			for (auto j = type.fieldStart; j < type.fieldStart + type.field_count; j++)
+			{
+				auto field = fields[j];
+				auto fieldName = STRING(field.nameIndex);
+				if (!hasEnding(fieldName, "FieldNumber")) continue;
+
+				auto protoTypeName = "";
+				auto protoFieldName = fieldName.substr(0, fieldName.length() - 11);
+				//TODO get actual default value of field
+				auto fieldDefaultValue = j - type.fieldStart + 1;
+
+				// Get the proto field's type from the return type of the generated getter
+				for (auto k = type.methodStart; k < type.methodStart + type.method_count; k++)
+				{
+					auto method = methods[k];
+					if (STRING(method.nameIndex) != "get_" + protoFieldName) continue;
+
+					//TODO get method return type name
+				}
+
+				std::cout << "\t" << protoFieldName << " = " << fieldDefaultValue << ";" << std::endl;
+			}
+			std::cout << "}" << std::endl << std::endl;
+			continue;
 		}
-		std::cout << std::endl;
+
 	}
 
 	f.close();
-	return 0;
 }
 
