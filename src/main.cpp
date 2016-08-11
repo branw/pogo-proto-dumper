@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
 
 		// All of the game's data can be found in the "Assembly-CSharp.dll" image
 		Il2CppImageDefinition* game_image = nullptr;
-		for (auto i = 0; i < COUNT(metadata, images); i++)
+		for (unsigned i = 0; i < COUNT(metadata, images); i++)
 		{
 			if (STRING(metadata, metadata.images[i].nameIndex) == "Assembly-CSharp.dll")
 			{
@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
 		}
 
 		// Enumerate every type in the image
-		for (auto i = game_image->typeStart; i < game_image->typeStart + game_image->typeCount; i++)
+		for (unsigned i = game_image->typeStart; i < game_image->typeStart + game_image->typeCount; i++)
 		{
 			auto type = &metadata.typeDefinitions[i];
 
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 			// If our type is an enum
 			if (type->enum_type)
 			{
-				cout << i << " " << "enum " << STRING(metadata, type->nameIndex) << " {" << endl;
+				cout << "enum " << STRING(metadata, type->nameIndex) << " {" << endl;
 				// Skip the first field which will always be "__value"
 				for (auto j = type->fieldStart + 1; j < type->fieldStart + type->field_count; j++)
 				{
@@ -86,7 +86,7 @@ int main(int argc, char* argv[])
 
 			// If our type is a protobuf message
 			auto has_parser_field = false;
-			for (auto j = type->fieldStart; j < type->fieldStart + type->field_count; j++)
+			for (unsigned j = type->fieldStart; j < type->fieldStart + type->field_count; j++)
 			{
 				if (STRING(metadata, metadata.fields[j].nameIndex) == "_parser")
 				{
@@ -96,8 +96,8 @@ int main(int argc, char* argv[])
 			}
 			if (has_parser_field)
 			{
-				cout << i << " " << "message " << STRING(metadata, type->nameIndex) << " { " << endl;
-				for (auto j = type->fieldStart; j < type->fieldStart + type->field_count; j++)
+				cout << "message " << STRING(metadata, type->nameIndex) << " { " << endl;
+				for (unsigned j = type->fieldStart; j < type->fieldStart + type->field_count; j++)
 				{
 					auto field = metadata.fields[j];
 					auto field_name = STRING(metadata, field.nameIndex);
@@ -108,7 +108,7 @@ int main(int argc, char* argv[])
 					auto proto_field_number = 0;
 
 					// Get protobuf field number from the default value of the field
-					for (auto k = 0; k < COUNT(metadata, fieldDefaultValues); k++)
+					for (unsigned k = 0; k < COUNT(metadata, fieldDefaultValues); k++)
 					{
 						auto field_default_value = &metadata.fieldDefaultValues[k];
 						if (field_default_value->fieldIndex != j) continue;
@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
 					}
 
 					// Get the proto field type from the return type of the generated getter
-					for (auto k = type->methodStart; k < type->methodStart + type->method_count; k++)
+					for (unsigned k = type->methodStart; k < type->methodStart + type->method_count; k++)
 					{
 						auto method = metadata.methods[k];
 						if (STRING(metadata, method.nameIndex) != "get_" + proto_field_name) continue;
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
 						proto_type_name = to_string(method.returnType);
 					}
 
-					cout << "\t" << proto_type_name << " " << proto_field_name << " = " << proto_field_number << ";" << endl;
+					cout << "\t" << proto_field_name << " = " << proto_field_number << ";" << endl;
 				}
 				cout << "}" << endl << endl;
 				continue;

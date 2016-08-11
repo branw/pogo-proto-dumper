@@ -44,9 +44,9 @@ namespace il2cpp
 		IL2CPP_RGCTX_DATA_METHOD
 	};
 
-	const int kPublickeyByteLength = 8;
+	const int kPublicKeyByteLength = 8;
 
-#pragma pack(4)
+#pragma pack(push, 4)
 	struct global_metadata_header
 	{
 		int32_t sanity;
@@ -141,7 +141,7 @@ namespace il2cpp
 		CustomAttributeIndex customAttributeIndex;
 		GenericContainerIndex genericContainerIndex;
 		MethodIndex methodIndex;
-		MethodIndex invojerIndex;
+		MethodIndex invokerIndex;
 		MethodIndex delegateWrapperIndex;
 		RGCTXIndex rgctxStartIndex;
 		int32_t rgctxCount;
@@ -289,15 +289,15 @@ namespace il2cpp
 		StringIndex nameIndex;
 		StringIndex cultureIndex;
 		StringIndex hashValueIndex;
-		StringIndex publickeyIndex;
+		StringIndex publicKeyIndex;
 		uint32_t hash_alg;
 		int32_t hash_len;
 		uint32_t flags;
-		int32_t maior;
+		int32_t major;
 		int32_t minor;
 		int32_t build;
 		int32_t revision;
-		uint8_t publickeytoken[kPublickeyByteLength];
+		uint8_t publicKeytoken[kPublicKeyByteLength];
 	};
 
 	struct Il2CppAssemblyDefinition
@@ -332,6 +332,7 @@ namespace il2cpp
 		int32_t start;
 		int32_t count;
 	};
+#pragma pack(pop)
 
 	class metadata
 	{
