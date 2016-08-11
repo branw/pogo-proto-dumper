@@ -4,5 +4,5 @@ project (umd CXX)
 set (CMAKE_CXX_STANDARD 14)
 set (CMAKE_CXX_STANDARD_REQUIRED on)
 
-add_executable (umd src/main.cpp)
+add_executable (umd src/main.cpp src/il2cpp.hpp)
 
