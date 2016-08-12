@@ -4,6 +4,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 #include "il2cpp.hpp"
 
 using namespace std;
@@ -60,14 +61,14 @@ int main(int argc, char* argv[])
 			throw exception("Unable to find \"Assembly-CSharp.dll\" image");
 		}
 
-		// Keep track of all dumped types and the types used in fields
-		set<TypeDefinitionIndex> dumped_types;
+		// Keep track of types referenced by fields to find nested enumerations
 		set<TypeDefinitionIndex> referenced_types;
 
 		// Create a mapping of TypeIndexes to TypeDefinitionIndexes in order to
 		// get the type of Il2CppMethodDefinition::returnType
 		map<TypeIndex, TypeDefinitionIndex> type_index_mapping;
-		for (unsigned i = 0; i < COUNT(metadata, images); i++) {
+		for (unsigned i = 0; i < COUNT(metadata, images); i++)
+		{
 			auto image = &metadata.images[i];
 			for (unsigned j = image->typeStart; j < image->typeStart + image->typeCount; j++)
 			{
@@ -87,31 +88,30 @@ int main(int argc, char* argv[])
 			// If our type is an enum
 			if (type->enum_type)
 			{
-				dumped_types.insert(i);
-
 				cout << "enum " << STRING(metadata, type->nameIndex) << " {" << endl;
 				// Skip the first field which will always be "__value"
 				for (auto j = type->fieldStart + 1; j < type->fieldStart + type->field_count; j++)
 				{
 					auto field = metadata.fields[j];
-					auto field_name = STRING(metadata, field.nameIndex);
-					auto field_default_value = 0;
+					auto element_name = STRING(metadata, field.nameIndex);
+					auto element_value = 0;
 
+					// Get value from the default value of the field
 					for (unsigned k = 0; k < COUNT(metadata, fieldDefaultValues); k++)
 					{
-						auto default_value = &metadata.fieldDefaultValues[k];
-						if (default_value->fieldIndex != j) continue;
+						auto field_default_value = &metadata.fieldDefaultValues[k];
+						if (field_default_value->fieldIndex != j) continue;
 
-						if (STRING(metadata, metadata.typeDefinitions[default_value->typeIndex].nameIndex) != "Byte")
+						if (STRING(metadata, metadata.typeDefinitions[field_default_value->typeIndex].nameIndex) != "Byte")
 						{
-							throw exception(("Field default value is not a byte (typeIndex=" + to_string(default_value->typeIndex) + ")").c_str());
+							throw exception(("Field default value is not a byte (typeIndex=" + to_string(field_default_value->typeIndex) + ")").c_str());
 						}
 
-						field_default_value = metadata.fieldAndParameterDefaultValueData[default_value->dataIndex];
+						element_value = metadata.fieldAndParameterDefaultValueData[field_default_value->dataIndex];
 						break;
 					}
 
-					cout << "\t" << field_name << " = " << field_default_value << ";" << endl;
+					cout << "\t" << element_name << " = " << element_value << ";" << endl;
 				}
 				cout << "}" << endl << endl;
 				continue;
@@ -129,7 +129,7 @@ int main(int argc, char* argv[])
 			}
 			if (has_parser_field)
 			{
-				dumped_types.insert(i);
+				referenced_types.clear();
 
 				cout << "message " << STRING(metadata, type->nameIndex) << " { " << endl;
 				for (unsigned j = type->fieldStart; j < type->fieldStart + type->field_count; j++)
@@ -171,14 +171,15 @@ int main(int argc, char* argv[])
 
 							// Map C# types to Protobuf types for conversion
 							const map<string, string> csharp_to_protobuf_types = {
-								{ "UInt64", "fixed64" },
-								{ "UInt32", "fixed32" },
-								{ "Double", "double" },
-								{ "String", "string" },
-								{ "Int32", "int32" },
-								{ "Int64", "int64" },
-								{ "Single", "float" },
-								{ "Boolean", "bool" }
+								{"Int32", "int32"},
+								{"Int64", "int64"},
+								{"UInt64", "fixed64"},
+								{"UInt32", "fixed32"},
+								{"Single", "float"},
+								{"Boolean", "bool"},
+								{"Double", "double"},
+								{"String", "string"},
+								{"ByteString", "bytes"}
 							};
 							if (csharp_to_protobuf_types.find(proto_type_name) != csharp_to_protobuf_types.end())
 							{
@@ -189,7 +190,7 @@ int main(int argc, char* argv[])
 						}
 						// If it's not there, it's a generic type, e.g. a RepeatedField<T> or List<T>
 						else
-						{	
+						{
 							//TODO resolve generic types
 							proto_type_name = "Generic" + to_string(method->returnType);
 						}
@@ -197,12 +198,47 @@ int main(int argc, char* argv[])
 
 					cout << "\t" << proto_type_name << " " << proto_field_name << " = " << proto_field_number << ";" << endl;
 				}
+
+				for (auto referenced_type_index : referenced_types)
+				{
+					auto referenced_type = &metadata.typeDefinitions[referenced_type_index];
+
+					// If the referenced type is a child of the current type
+					if (type_index_mapping.find(referenced_type->declaringTypeIndex) == type_index_mapping.end()) continue;
+					if (type_index_mapping.at(referenced_type->declaringTypeIndex) - 1 != i) continue;
+
+					cout << endl << "\tenum " << STRING(metadata, referenced_type->nameIndex) << " {" << endl;
+					// Skip the first field which will always be "__value"
+					for (auto j = referenced_type->fieldStart + 1; j < referenced_type->fieldStart + referenced_type->field_count; j++)
+					{
+						auto field = metadata.fields[j];
+						auto element_name = STRING(metadata, field.nameIndex);
+						auto element_value = 0;
+
+						// Get value from the default value of the field
+						for (unsigned k = 0; k < COUNT(metadata, fieldDefaultValues); k++)
+						{
+							auto field_default_value = &metadata.fieldDefaultValues[k];
+							if (field_default_value->fieldIndex != j) continue;
+
+							if (STRING(metadata, metadata.typeDefinitions[field_default_value->typeIndex].nameIndex) != "Byte")
+							{
+								throw exception(("Field default value is not a byte (typeIndex=" + to_string(field_default_value->typeIndex) + ")").c_str());
+							}
+
+							element_value = metadata.fieldAndParameterDefaultValueData[field_default_value->dataIndex];
+							break;
+						}
+
+						cout << "\t\t" << element_name << " = " << element_value << ";" << endl;
+					}
+					cout << "\t}" << endl;
+				}
+
 				cout << "}" << endl << endl;
 				continue;
 			}
 		}
-
-		//TODO make sure all referenced_types are in dumped_types
 	}
 	catch (exception& e)
 	{
