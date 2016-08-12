@@ -47,7 +47,7 @@ namespace il2cpp
 	const int kPublicKeyByteLength = 8;
 
 #pragma pack(push, 4)
-	struct global_metadata_header
+	struct Il2CppGlobalMetadataHeader
 	{
 		int32_t sanity;
 		int32_t version;
@@ -337,7 +337,7 @@ namespace il2cpp
 	class metadata
 	{
 	public:
-		global_metadata_header header;
+		Il2CppGlobalMetadataHeader header;
 		char* stringLiteral;
 		char* stringLiteralData;
 		char* string;
@@ -370,7 +370,7 @@ namespace il2cpp
 
 		metadata(std::ifstream& global_metdata)
 		{
-			global_metdata.read(reinterpret_cast<char *>(&header), sizeof(global_metadata_header));
+			global_metdata.read(reinterpret_cast<char *>(&header), sizeof(Il2CppGlobalMetadataHeader));
 
 			if (header.sanity != 0xfab11baf)
 			{
